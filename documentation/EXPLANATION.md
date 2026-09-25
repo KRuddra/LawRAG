@@ -18,7 +18,7 @@ This document consolidates all implementation details, architecture, and develop
 
 A proof-of-concept Retrieval-Augmented Generation (RAG) system that enables Wisconsin law enforcement officers to quickly query state statutes, case law, and department policies through a conversational interface.
 
-### Core Requirements
+### Core Capabilities
 
 1. **Data Ingestion**: Multi-format support (PDF, HTML, DOCX) for statutes, case law, policies, and training materials
 2. **Intelligent Chunking**: Preserves legal context, handles hierarchical structures, maintains metadata
@@ -662,7 +662,7 @@ codefourrag/
 
 ## Development Workflow
 
-This project was built incrementally through 10 separate processes:
+This project was built incrementally, one component at a time:
 
 1. **Data Ingestion Pipeline** - Parse, normalize, extract metadata
 2. **Document Chunking Strategy** - Legal-aware chunking with hierarchy
@@ -675,7 +675,7 @@ This project was built incrementally through 10 separate processes:
 9. **Chat Interface** - Next.js frontend with sources panel
 10. **Officer-Specific Features** - Quick actions and export
 
-Each process was implemented and tested independently before moving to the next.
+Each component was implemented and tested independently before moving on to the next.
 
 ---
 
@@ -694,5 +694,5 @@ Each process was implemented and tested independently before moving to the next.
 
 ## License
 
-This is a take-home assignment project.
+This is a personal project.
 
