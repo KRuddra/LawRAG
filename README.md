@@ -9,7 +9,7 @@ codefourrag/
 ├── backend/          # FastAPI backend application
 ├── frontend/         # Next.js frontend application
 ├── data/            # Documents and embeddings
-├── docs/            # Documentation
+├── documentation/   # Project documentation
 └── scripts/         # Utility scripts
 ```
 
@@ -69,7 +69,7 @@ The frontend will be available at `http://localhost:3000`
 
 ## Development Workflow
 
-This project is being built incrementally through 10 separate processes. Each process is implemented and tested independently before moving to the next.
+This project was built incrementally, one component at a time. Each component was implemented and tested independently before moving on to the next.
 
 ## API Documentation
 
@@ -174,16 +174,19 @@ python scripts/evaluate_performance.py
 
 This will generate performance metrics and save results to `performance_results.json`.
 
-See `PERFORMANCE_METRICS.md` for detailed methodology and expected results.
+See `documentation/PERFORMANCE_METRICS.md` for detailed methodology and expected results.
 
 ## Documentation
 
-- **README.md**: Quick start guide and setup instructions
-- **EXPLANATION.md**: Complete implementation details and technical documentation
-- **ARCHITECTURE.md**: System architecture, design decisions, scalability, and security
-- **PERFORMANCE_METRICS.md**: Performance evaluation methodology and metrics
+All project documentation lives in the `documentation/` folder:
+
+- **README.md**: Quick start guide and setup instructions (this file, at the repo root)
+- **documentation/EXPLANATION.md**: Complete implementation details and technical documentation
+- **documentation/ARCHITECTURE.md**: System architecture, design decisions, scalability, and security
+- **documentation/PERFORMANCE_METRICS.md**: Performance evaluation methodology and metrics
+- **documentation/PIPELINE_UPGRADE_DECISIONS.md**: Architecture decision record for the multi-jurisdiction pipeline upgrade
 
 ## License
 
-This is a take-home assignment project.
+This is a personal project.
 
