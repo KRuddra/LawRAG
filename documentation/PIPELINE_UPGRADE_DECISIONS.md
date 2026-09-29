@@ -1,6 +1,6 @@
 # Pipeline Upgrade — Architecture Decision Record
 
-**Status:** Draft — decisions proposed, pending sign-off
+**Status:** Decisions 1–12 recorded and locked (2026-09-29); Decision 6 removed from scope. MVP = federal-first (US federal + Canada federal + BC).
 **Date:** 2026-09-25
 **Context:** Upgrading the RAG pipeline from a single-jurisdiction proof-of-concept (Wisconsin, ~5 local PDFs) into a **multi-jurisdiction legal assistant** covering every Canadian province/territory and every US state (plus both federal levels), where a user selects a **jurisdiction** and one or more **categories of law** and gets answers grounded only in the law that applies there — kept current over time.
 
@@ -80,20 +80,20 @@ Each decision below states **why** we're making it and how it will be used, then
 
 > **One product input we need from you up front:** several data sources price/permit differently for **commercial vs non-commercial** use (Open States/Plural, CourtListener membership, Caselaw Access Project, and especially CanLII). This affects Decisions 1, 2, and 12. The recommendations below assume a **commercial** product and therefore bias hard toward official/public-domain sources.
 
-| # | Decision | Recommended option |
+| # | Decision | Decision made (locked 2026-09-29) |
 |---|----------|--------------------|
-| 1 | How we acquire data | Official bulk data & APIs first (per-jurisdiction adapters) |
-| 2 | Source discovery | Curated official-source registry (human-approved; AI only assists) |
-| 3 | Broken/stale sources | Flag-for-review + backoff (never silent delete) |
-| 4 | Raw document storage | Object storage for originals; derived text/vectors in serving layer |
-| 5 | Vector + metadata DB | Postgres + pgvector |
-| 6 | Refresh strategy | Incremental delta + tiered cadence |
-| 7 | Jurisdiction isolation | Hard metadata filter at query time |
-| 8 | Category taxonomy | Controlled cross-jurisdiction vocabulary + hybrid classification |
-| 9 | Currency/versioning | Point-in-time with in-force/repealed status |
-| 10 | Embedding cost | Content-hash cache + batching; provider swappable |
-| 11 | Orchestration | Decoupled ingestion service + scheduler + state DB |
-| 12 | Compliance | Official-source-first, licence-aware, respect ToS |
+| 1 | How we acquire data | Official bulk data & APIs first — MVP = US federal (govinfo) + Canada federal (Justice Laws) + BC (BC Laws) |
+| 2 | Source discovery | Hybrid — curated registry + AI-suggested links + **human approval** (lightweight; runs rarely) |
+| 3 | Broken/stale sources | Option A — flag-for-review + backoff (never silent delete) |
+| 4 | Raw document storage | **Option B — store originals in the repo** (avoid cloud cost; watch GitHub file-size limits) |
+| 5 | Vector + metadata DB | **Option C — keep ChromaDB** for now |
+| 6 | ~~Refresh strategy~~ | ❌ **REMOVED from scope** — no automated refresh for the MVP |
+| 7 | Jurisdiction isolation | Option A — hard metadata filter at query time |
+| 8 | Category taxonomy | Option A — controlled vocabulary + hybrid classification |
+| 9 | Currency/versioning | **Option B — latest-only** for now |
+| 10 | Embedding cost | Option A — content-hash cache + batching; provider swappable |
+| 11 | Orchestration | Option A — decoupled ingestion pipeline (MVP: simple script) |
+| 12 | Compliance | ⚠️ **Option B — scrape reachable sources** (hard exception: never CanLII; flagged for reconsideration) |
 
 ---
 
@@ -114,6 +114,27 @@ Pull from government/open publishers that already release machine-readable law (
 - **Pros:** flexible; can reach anything with a URL; fills gaps where no API exists.
 - **Cons:** brittle (HTML changes break parsers); legal/ToS risk (CanLII bulk scraping is *prohibited and litigated* — see FAQ); rate-limiting/blocking; noisy extraction; high maintenance.
 
+#### ✅ Decision — LOCKED (2026-09-29): adopt Option A, starting with a federal-first MVP
+
+We are moving forward with **Option A (official bulk data & APIs first)**. The initial "minimum viable" corpus is **three fully-specced, free, open sources**, all providing *codified law* with no ingestion blockers:
+
+| Source | Jurisdiction | What we get | Access | Format | Auth | Rate limit |
+|---|---|---|---|---|---|---|
+| **govinfo** (GPO) | US federal | US Code + CFR | Bulk download (`/bulkdata`) + `api.govinfo.gov` | USLM **XML** | api.data.gov key (bulk needs none) | api.data.gov standard (~1,000 req/hr, **confirmed**) |
+| **Justice Laws** (Dept. of Justice Canada) | Canada federal | All consolidated Acts + regulations (EN/FR) | Bulk XML via GitHub clone / FTP (point-in-time) | **XML** (~300 MB) | None | None |
+| **BC Laws** (CiviX API) | British Columbia | BC statutes + regulations | REST API (Content / Document / Search) | **XML** | None apparent | Not published — throttle politely |
+
+**How we read them (tech):** stream-download the bulk XML (`httpx` / `git clone`) and parse with `lxml`; for BC, `httpx` GET the Content endpoint to list documents and the Document endpoint to fetch each, then parse with `lxml`. All three are **pre-ingested** — no live external calls at query time. Existing dependencies (`httpx`, `requests`, `lxml`, stdlib `zipfile`) already cover this.
+
+**Why these three:** each is authoritative, machine-readable, free, and legally clean (US federal is public domain; Justice Laws and BC Laws are under the Open Government Licence). Acquisition is fast — the full Canadian federal XML is ~300 MB (seconds to a few minutes to download); parsing structured XML is minutes. Query-time latency (~1.5–3.5 s, LLM-dominated) is unaffected by the source choice.
+
+**Explicitly deferred (out of MVP scope):**
+- **US state codified statutes** — no clean pan-state source; each state publishes differently and needs a per-state adapter, added one state at a time later.
+- **Open States / Plural** — evaluated and **excluded from the corpus**: its API (`/jurisdictions`, `/people`, `/bills`, `/committees`, `/events`) exposes *legislative activity* (bills, sponsors, events), **not codified statutes**, so it does not serve the "what law applies" feature. It may return later for a separate "track pending legislation" feature.
+- **US case law** — available via CourtListener **bulk downloads** (its REST API is capped at 50 req/hr, too slow for ingest); deferred to a later tier.
+- **Canadian case law** — remains a gap; CanLII prohibits bulk access, so this needs per-court official feeds or a licence, not scraping.
+- **Other Canadian provinces / territories** — added per-province after BC, coverage permitting.
+
 ---
 
 ### Decision 2 — Source registry & how we discover new sources
@@ -133,6 +154,10 @@ A versioned registry (a Postgres table) mapping `jurisdiction × category × sou
 - **Pros:** faster than fully manual; broader reach.
 - **Cons:** removes the accuracy safeguard that makes Option A safe; same authority/audit risks as B, just slower to surface.
 
+#### ✅ Decision — DECIDED (2026-09-29): hybrid registry + AI-suggested links + human approval (lightweight)
+
+We will combine a **curated official-source registry** with **AI-discovered candidate links**, gated by a **human approval** step before anything is ingested. Because this pipeline runs infrequently, the implementation stays lightweight — a simple registry (a small config file or table) plus a manual approve step, not a heavy review workflow. This keeps Option A's core safeguard (a human confirms every source) while giving AI a genuine role in *proposing* new links, not merely assisting within pre-approved domains.
+
 ---
 
 ### Decision 3 — Handling broken / stale sources
@@ -148,6 +173,10 @@ On repeated failures, mark the source `degraded`/`stale`, keep the last successf
 - **Pros:** self-cleaning; zero maintenance.
 - **Cons:** a 404 is often a temporary outage or a moved page, not a dead source; silent removal invisibly degrades legal completeness with no record — unacceptable for this product.
 
+#### ✅ Decision — DECIDED (2026-09-29): Option A (flag-for-review + backoff)
+
+On repeated failures we flag the source for review and keep the last-good content rather than silently dropping it.
+
 ---
 
 ### Decision 4 — Where we store raw source documents
@@ -162,6 +191,10 @@ Originals (XML/HTML/PDF) go to S3 / Cloudflare R2 / GCS, keyed by `source + vers
 **Option B — Store files in a server folder (or the repo)**
 - **Pros:** dead simple; no external dependency; fine for a POC.
 - **Cons:** doesn't scale; no versioning/dedup; bloats backups; couples storage to one host. (This is the "folder on a server" idea — good enough to start, not to grow into.)
+
+#### ✅ Decision — DECIDED (2026-09-29): Option B (store originals in the repo)
+
+To avoid paying for cloud object storage, originals live in the repo (e.g. under `data/raw/`). ⚠️ **Caveat to watch:** GitHub enforces a **100 MB hard limit per file** and gets unwieldy past ~1 GB per repo; the Canada federal XML alone is ~300 MB and the US Code XML is ~1 GB+, so if any single file approaches 100 MB or the repo balloons, move those paths to **Git LFS** — or `.gitignore` the raw bulk, keep a fetch script, and commit only the parsed/chunked text. Fine for the MVP as long as we watch file sizes.
 
 ---
 
@@ -183,20 +216,15 @@ Originals (XML/HTML/PDF) go to S3 / Cloudflare R2 / GCS, keyed by `source + vers
 
 > Keep a thin storage abstraction so we can move A → B later without touching business logic.
 
+#### ✅ Decision — DECIDED (2026-09-29): Option C (keep ChromaDB for now)
+
+Keep the existing local ChromaDB. At MVP scale (US federal + Canada federal + BC) it is sufficient, and it pairs with the local-first, no-cloud choices in Decisions 4 and 6. We retain a thin storage abstraction so we can migrate to Postgres + pgvector (Option A) later without rewriting business logic.
+
 ---
 
 ### Decision 6 — Update / refresh strategy
 
-**Why / how it's used:** Directly addresses "constant refresh." Law changes at very different rates (statutes: slow; case law: daily). Re-fetching and re-embedding everything on a timer is wasteful and expensive.
-
-**Option A — Incremental delta updates + tiered cadence _(Recommended)_**
-Use HTTP conditional requests (ETag/Last-Modified) and content hashing to fetch only what changed; re-embed only changed chunks; schedule per source type (e.g. statutes every ~2 weeks to match Justice Laws' cycle, case law daily).
-- **Pros:** minimal bandwidth/compute/embedding cost; fast; scales; matches each source's real publish cadence; gentle on sources (ToS-friendly).
-- **Cons:** needs per-source change detection and fetch-state tracking; more adapter logic.
-
-**Option B — Constant full refresh (re-fetch & re-embed everything on a fixed timer)**
-- **Pros:** simple; guarantees freshness; no diff logic.
-- **Cons:** expensive (embedding + bandwidth) and slow at scale; hammers sources (rate-limit/ToS risk); almost all of the work is redundant.
+> ❌ **REMOVED from scope (2026-09-29).** The MVP has **no automated refresh** — the corpus is ingested once and only re-ingested manually / on-demand if we choose to. The incremental-delta and tiered-cadence machinery is therefore out of scope until we decide we need updates. (The decision number is kept as a stable identifier so later references don't shift; revisit if/when refresh is added.)
 
 ---
 
@@ -212,6 +240,10 @@ Jurisdiction is a required, indexed field, modeled as `country → region (provi
 **Option B — Soft ranking (jurisdiction as a ranking signal, not a filter)**
 - **Pros:** simpler; tolerant of missing tags.
 - **Cons:** cross-jurisdiction leakage → wrong legal answers. Unacceptable for this product.
+
+#### ✅ Decision — DECIDED (2026-09-29): Option A (hard metadata filter)
+
+Jurisdiction is a required, indexed field; retrieval filters on it so a region's query returns only that region's law plus the co-applicable federal layer. No cross-jurisdiction leakage.
 
 ---
 
@@ -232,6 +264,10 @@ A fixed vocabulary (e.g. criminal, traffic/motor-vehicle, family, property, empl
 - **Pros:** flexible; minimal upfront design.
 - **Cons:** inconsistent, non-deterministic labels; hard to audit; ongoing LLM cost.
 
+#### ✅ Decision — DECIDED (2026-09-29): Option A (controlled taxonomy + hybrid classification)
+
+A fixed, multi-label category vocabulary, populated by rules / structural signals first and LLM-assisted for ambiguous cases, stored as filterable metadata.
+
 ---
 
 ### Decision 9 — Currency & versioning (point-in-time)
@@ -246,6 +282,10 @@ Effective/repeal dates and in-force status are first-class metadata; default to 
 **Option B — Latest-only (store current version, overwrite on update)**
 - **Pros:** simplest; smallest storage.
 - **Cons:** no history; can't answer "as of"; risky if an update is wrong; can't surface repealed-vs-current distinctions.
+
+#### ✅ Decision — DECIDED (2026-09-29): Option B (latest-only, for now)
+
+Store only the current version of each provision and overwrite on any re-ingest. This pairs with the no-refresh choice (Decision 6): a simple snapshot of current law. ⚠️ **Known tradeoff:** we cannot answer "as of a date" or distinguish repealed-vs-current text — acceptable for the MVP; revisit if the product needs historical / point-in-time accuracy.
 
 ---
 
@@ -264,6 +304,10 @@ Embed a chunk only when its content hash changes (pairs with Decision 6); batch 
 
 > Keep `text-embedding-3-small` for the POC, but add the hash-cache immediately; evaluate self-hosting once the corpus is large.
 
+#### ✅ Decision — DECIDED (2026-09-29): Option A (content-hash cache + batching, swappable)
+
+Embed via batched calls, cache by content hash so unchanged chunks are never re-embedded, and keep the embedding provider behind an interface. Keep `text-embedding-3-small` for now. (With no scheduled refresh, the cache mainly saves cost on manual re-ingests.)
+
 ---
 
 ### Decision 11 — Ingestion orchestration
@@ -279,6 +323,10 @@ Pipeline: `registry → fetch(delta) → parse → normalize → classify → ch
 - **Pros:** trivial to start; fine for a POC.
 - **Cons:** no retries/observability/state; couples ingestion to the app host; fragile across 60+ sources. (This is the "folder refreshed on a server" idea — a fine seed, not the destination.)
 
+#### ✅ Decision — DECIDED (2026-09-29): Option A (decoupled ingestion pipeline)
+
+Run ingestion as a decoupled pipeline (`registry → fetch → parse → normalize → classify → chunk → embed → upsert`), separate from the serving API. For the MVP this is its simplest form — a runnable ingest script / CLI, not a full scheduler — consistent with running infrequently.
+
 ---
 
 ### Decision 12 — Compliance & licensing posture
@@ -293,6 +341,10 @@ Track each source's licence in the registry; never bulk-scrape prohibited source
 **Option B — Scrape whatever is reachable**
 - **Pros:** maximum coverage, fast.
 - **Cons:** legal/ToS/copyright liability; blocking; reputational and legal risk. Unacceptable.
+
+#### ⚠️ Decision — DECIDED (2026-09-29): Option B (scrape reachable sources) — with a hard exception
+
+Chosen posture: we may scrape reachable sources to fill coverage. ⚠️ **This carries real legal / ToS risk and partially conflicts with Decision 1 (official-source-first).** Non-negotiable exception: **never bulk-scrape CanLII** — it explicitly prohibits this and is actively litigating it (see FAQ). Guardrails we should keep even under Option B: respect `robots.txt`, throttle politely, and prefer an official source whenever one exists. **Flagged for reconsideration** — Option A (official-first) remains the safer long-term posture.
 
 ---
 
