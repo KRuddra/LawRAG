@@ -22,6 +22,38 @@ class ScoredChunk:
         self.score = score
 
 
+def build_where_clause(filters: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Build a ChromaDB ``where`` clause from a simple filters dict.
+
+    - ``None`` values are dropped.
+    - list/tuple/set values become an ``$in`` membership test (used for
+      jurisdiction scope, e.g. ``["ca-bc", "ca-federal"]``).
+    - Multiple conditions are combined with ``$and``.
+
+    Returns ``None`` when there is nothing to filter on.
+    """
+    if not filters:
+        return None
+
+    conditions: List[Dict[str, Any]] = []
+    for key, value in filters.items():
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            values = [v for v in value if v is not None]
+            if not values:
+                continue
+            conditions.append({key: {"$in": list(values)}})
+        else:
+            conditions.append({key: value})
+
+    if not conditions:
+        return None
+    if len(conditions) == 1:
+        return conditions[0]
+    return {"$and": conditions}
+
+
 class VectorStore:
     """ChromaDB vector store wrapper"""
     
@@ -108,6 +140,24 @@ class VectorStore:
                     metadata["date"] = chunk.date
                 if chunk.chunk_id:  # Always include chunk_id in metadata for retrieval
                     metadata["chunk_id"] = chunk.chunk_id
+
+                # Multi-jurisdiction metadata (Decision 7 / 8). Stored as scalars
+                # because ChromaDB metadata cannot hold lists; the full category
+                # list is stored as a CSV string for display only.
+                if chunk.jurisdiction_id:
+                    metadata["jurisdiction_id"] = chunk.jurisdiction_id
+                if chunk.country:
+                    metadata["country"] = chunk.country
+                if chunk.region:
+                    metadata["region"] = chunk.region
+                if chunk.level:
+                    metadata["level"] = chunk.level
+                if chunk.category:
+                    metadata["category"] = chunk.category
+                if chunk.categories:
+                    metadata["categories_csv"] = ",".join(chunk.categories)
+                if chunk.source_id:
+                    metadata["source_id"] = chunk.source_id
                 
                 # Optional fields (if present in original metadata)
                 # These would come from document metadata if we extend Chunk model
@@ -154,23 +204,9 @@ class VectorStore:
             raise ValueError("Either query_embedding or query_text must be provided")
         
         try:
-            # Build where clause for filtering
-            # ChromaDB requires $and operator for multiple conditions
-            where_clause = None
-            if filters:
-                # Filter out None values
-                valid_filters = {k: v for k, v in filters.items() if v is not None}
-                
-                if len(valid_filters) == 1:
-                    # Single filter - use directly
-                    where_clause = valid_filters
-                elif len(valid_filters) > 1:
-                    # Multiple filters - use $and operator
-                    where_clause = {
-                        "$and": [
-                            {key: value} for key, value in valid_filters.items()
-                        ]
-                    }
+            # Build where clause for filtering (supports $in for list values,
+            # e.g. jurisdiction scope ["ca-bc", "ca-federal"]).
+            where_clause = build_where_clause(filters)
             
             # Perform query
             if query_text:
@@ -213,7 +249,17 @@ class VectorStore:
                         date=metadata.get("date"),
                         jurisdiction=metadata.get("jurisdiction", "WI"),
                         title=metadata.get("title", ""),
-                        source_uri=metadata.get("source_uri", "")
+                        source_uri=metadata.get("source_uri", ""),
+                        jurisdiction_id=metadata.get("jurisdiction_id"),
+                        country=metadata.get("country"),
+                        region=metadata.get("region"),
+                        level=metadata.get("level"),
+                        category=metadata.get("category"),
+                        categories=(
+                            metadata["categories_csv"].split(",")
+                            if metadata.get("categories_csv") else []
+                        ),
+                        source_id=metadata.get("source_id"),
                     )
                     
                     scored_chunks.append(ScoredChunk(chunk=chunk, score=score))
@@ -266,7 +312,17 @@ class VectorStore:
                         date=metadata.get("date"),
                         jurisdiction=metadata.get("jurisdiction", "WI"),
                         title=metadata.get("title", ""),
-                        source_uri=metadata.get("source_uri", "")
+                        source_uri=metadata.get("source_uri", ""),
+                        jurisdiction_id=metadata.get("jurisdiction_id"),
+                        country=metadata.get("country"),
+                        region=metadata.get("region"),
+                        level=metadata.get("level"),
+                        category=metadata.get("category"),
+                        categories=(
+                            metadata["categories_csv"].split(",")
+                            if metadata.get("categories_csv") else []
+                        ),
+                        source_id=metadata.get("source_id"),
                     )
                     chunks.append(chunk)
             

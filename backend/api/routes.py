@@ -16,6 +16,8 @@ from backend.ingestion.metadata import extract_metadata
 from backend.ingestion.chunking import chunk_document
 from backend.retrieval.vector_store import get_vector_store
 from backend.retrieval.hybrid_search import hybrid_search
+from backend.jurisdictions import applicable_ids, UnknownJurisdictionError
+from backend.categories import normalise_category
 from backend.retrieval.context import build_context
 from backend.generation.prompts import LEGAL_ASSISTANT_SYSTEM_PROMPT, build_user_prompt
 from backend.generation.llm_client import generate
@@ -264,10 +266,28 @@ async def chat(message: ChatMessage):
     
     try:
         logger.info(f"Processing chat query: {query[:100]}")
-        
-        # Step 1: Hybrid search with query enhancement
+
+        # Step 0: Build jurisdiction/category scope filters (Decisions 7 & 8).
+        # A sub-national jurisdiction expands to include its co-applicable
+        # federal layer; categories filter on the primary scalar category.
+        scope_filters: dict = {}
+        if message.jurisdiction:
+            try:
+                scope_filters["jurisdiction_id"] = applicable_ids(message.jurisdiction)
+            except UnknownJurisdictionError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+        if message.categories:
+            categories = [
+                c.value for c in (normalise_category(name) for name in message.categories)
+                if c is not None
+            ]
+            if categories:
+                scope_filters["category"] = categories
+
+        # Step 1: Hybrid search with query enhancement, scoped to the jurisdiction
         search_results = hybrid_search(
             query=query,
+            filters=scope_filters or None,
             top_k=10,
             use_query_enhancement=True
         )
