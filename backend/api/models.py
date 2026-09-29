@@ -2,7 +2,7 @@
 Pydantic models for API requests and responses
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -11,6 +11,15 @@ class ChatMessage(BaseModel):
     """Chat message request"""
     message: str
     conversation_id: Optional[str] = None
+    jurisdiction: Optional[str] = Field(
+        None,
+        description="Jurisdiction id to scope the answer to (e.g. 'ca-bc', 'us-federal'). "
+                    "Sub-national ids also include their co-applicable federal layer.",
+    )
+    categories: Optional[List[str]] = Field(
+        None,
+        description="Optional category filter (e.g. ['criminal', 'traffic']).",
+    )
 
 
 class SourceDocument(BaseModel):
@@ -76,26 +85,50 @@ class Chunk(BaseModel):
     statute_number: Optional[str] = Field(None, description="Statute number if applicable (e.g., '940.01')")
     case_citation: Optional[str] = Field(None, description="Case citation if applicable (e.g., 'State v. Smith, 2023')")
     date: Optional[str] = Field(None, description="Date associated with the chunk")
-    jurisdiction: str = Field(..., description="Jurisdiction (e.g., 'WI', 'US')")
+    jurisdiction: str = Field(..., description="Legacy jurisdiction label (e.g., 'WI', 'US')")
     title: str = Field(..., description="Document title")
     source_uri: str = Field(..., description="Source file path/URI")
-    
-    class Config:
-        json_schema_extra = {
+
+    # Multi-jurisdiction fields (Decision 7 / 8). Optional for backward
+    # compatibility with existing single-jurisdiction chunks.
+    jurisdiction_id: Optional[str] = Field(
+        None, description="Structured jurisdiction id (e.g., 'ca-bc', 'us-federal')"
+    )
+    country: Optional[str] = Field(None, description="Country code (e.g., 'US', 'CA')")
+    region: Optional[str] = Field(None, description="Sub-national region code (e.g., 'BC'); None for federal")
+    level: Optional[str] = Field(None, description="Government level (e.g., 'federal', 'provincial')")
+    category: Optional[str] = Field(
+        None, description="Primary law category, used as the scalar retrieval filter (Decision 8)"
+    )
+    categories: List[str] = Field(
+        default_factory=list, description="Full multi-label category list, for display"
+    )
+    source_id: Optional[str] = Field(None, description="Registry source id this chunk came from")
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "chunk_id": "doc_123_chunk_0",
-                "doc_id": "data/raw/statutes/940.01.pdf",
+                "doc_id": "acts/C-46.xml",
                 "doc_type": "statute",
-                "text": "Whoever causes the death of another human being...",
-                "hierarchy_path": "Chapter 940 > Section 940.01",
-                "statute_number": "940.01",
+                "text": "Every one commits an offence who...",
+                "hierarchy_path": "Criminal Code > Part VIII > Section 222",
+                "statute_number": "222",
                 "case_citation": None,
                 "date": "2023",
-                "jurisdiction": "WI",
-                "title": "Wisconsin Statute 940.01",
-                "source_uri": "data/raw/statutes/940.01.pdf"
+                "jurisdiction": "CA",
+                "title": "Criminal Code",
+                "source_uri": "https://laws-lois.justice.gc.ca/eng/acts/C-46/",
+                "jurisdiction_id": "ca-federal",
+                "country": "CA",
+                "region": None,
+                "level": "federal",
+                "category": "criminal",
+                "categories": ["criminal"],
+                "source_id": "ca-justice-laws",
             }
         }
+    )
 
 
 class IngestResponse(BaseModel):

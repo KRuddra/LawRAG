@@ -1,0 +1,58 @@
+[
+  {
+    "id": "us-govinfo-uscode",
+    "name": "United States Code (govinfo / GPO)",
+    "jurisdiction_id": "us-federal",
+    "adapter": "govinfo",
+    "url": "https://www.govinfo.gov/bulkdata/USCODE",
+    "doc_format": "uslm-xml",
+    "licence": "public-domain",
+    "approved": true,
+    "status": "active",
+    "categories": ["*"],
+    "discovered_by": "human",
+    "notes": "US federal statutes. Bulk USLM XML; api.data.gov key only needed for the REST API, not bulk."
+  },
+  {
+    "id": "ca-justice-laws",
+    "name": "Consolidated federal Acts and regulations (Justice Laws)",
+    "jurisdiction_id": "ca-federal",
+    "adapter": "justice_laws",
+    "url": "https://github.com/justicecanada/laws-lois-xml",
+    "doc_format": "xml",
+    "licence": "ogl-canada",
+    "approved": true,
+    "status": "active",
+    "categories": ["*"],
+    "discovered_by": "human",
+    "notes": "Canada federal statutes + regulations, bilingual bulk XML (~300 MB). No auth."
+  },
+  {
+    "id": "ca-bc-laws",
+    "name": "BC Laws (CiviX API)",
+    "jurisdiction_id": "ca-bc",
+    "adapter": "bc_laws",
+    "url": "https://www.bclaws.gov.bc.ca/civix/content/complete/statreg",
+    "doc_format": "xml",
+    "licence": "ogl-bc",
+    "approved": true,
+    "status": "active",
+    "categories": ["*"],
+    "discovered_by": "human",
+    "notes": "British Columbia statutes + regulations via the CiviX REST API. No auth apparent; throttle politely."
+  },
+  {
+    "id": "us-courtlistener-caselaw-proposed",
+    "name": "CourtListener US case law (candidate, awaiting review)",
+    "jurisdiction_id": "us-federal",
+    "adapter": "courtlistener",
+    "url": "https://www.courtlistener.com/help/api/bulk-data/",
+    "doc_format": "json",
+    "licence": "unverified",
+    "approved": false,
+    "status": "proposed",
+    "categories": ["*"],
+    "discovered_by": "ai",
+    "notes": "Example AI-discovered candidate (US case law, deferred). NOT ingested until a human approves it, confirms the licence/terms, and the bulk-download adapter is built."
+  }
+]

@@ -214,6 +214,22 @@ def get_bm25_index(vector_store: Optional[VectorStore] = None, force_reload: boo
     return _bm25_index
 
 
+def enforce_jurisdiction_scope(
+    results: List[ScoredChunk], allowed_ids: Optional[List[str]]
+) -> List[ScoredChunk]:
+    """Hard jurisdiction isolation (Decision 7).
+
+    Drop any result whose ``jurisdiction_id`` is not in ``allowed_ids``. This
+    closes the leak path where BM25 keyword hits could surface chunks from
+    other jurisdictions that never went through the semantic ``where`` filter.
+    When ``allowed_ids`` is falsy, results pass through unchanged.
+    """
+    if not allowed_ids:
+        return results
+    allowed = set(allowed_ids)
+    return [r for r in results if r.chunk.jurisdiction_id in allowed]
+
+
 def hybrid_search(
     query: str,
     filters: Optional[Dict[str, Any]] = None,
@@ -411,6 +427,14 @@ def hybrid_search(
     
     # Sort by score descending
     final_results.sort(key=lambda x: x.score, reverse=True)
-    
+
+    # Hard jurisdiction isolation (Decision 7): enforce scope on the merged
+    # results so BM25 keyword matches cannot leak other jurisdictions.
+    if filters and filters.get("jurisdiction_id"):
+        allowed = filters["jurisdiction_id"]
+        if not isinstance(allowed, (list, tuple, set)):
+            allowed = [allowed]
+        final_results = enforce_jurisdiction_scope(final_results, list(allowed))
+
     # Return top_k
     return final_results[:top_k]
