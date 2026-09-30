@@ -25,8 +25,9 @@
    - [Decision 11 — Ingestion orchestration](#decision-11--ingestion-orchestration)
    - [Decision 12 — Compliance & licensing posture](#decision-12--compliance--licensing-posture)
 3. [Proposed Future Infrastructure](#3-proposed-future-infrastructure)
-4. [Conclusion](#4-conclusion)
-5. [FAQ — Where we get our data (with links)](#5-faq--where-we-get-our-data-with-links)
+4. [Build Roadmap & Stages](#build-roadmap--stages)
+5. [Conclusion](#4-conclusion)
+6. [FAQ — Where we get our data (with links)](#5-faq--where-we-get-our-data-with-links)
 
 ---
 
@@ -429,6 +430,33 @@ Two planes: a **serving plane** (what customers touch) and an **ingestion plane*
           │ Object storage     │                   │ Postgres + pgvector         │
           └────────────────────┘                   └────────────────────────────┘
 ```
+
+---
+
+## Build Roadmap & Stages
+
+The decisions above are delivered in verifiable stages. Status as of 2026-09-29.
+
+| Stage | Scope | Decisions | Status |
+|-------|-------|-----------|--------|
+| 1. Domain foundation | Jurisdiction taxonomy, category taxonomy + classifier, source registry | D2, D3, D7, D8 | ✅ Done |
+| 2. Environment | Modernize dependencies for Python 3.14 | — | ✅ Done |
+| 3. Retrieval filtering | Chunk metadata, jurisdiction/category filters, hard jurisdiction isolation | D7, D8 | ✅ Done |
+| 4. Source adapters | `govinfo` (US fed), `justice_laws` (CA fed), `bc_laws` (BC) → tagged Documents | D1, D12 | 🔄 In progress (`justice_laws` done) |
+| 5. Ingestion CLI | Decoupled download → parse → classify → chunk → embed(cache) → upsert; in-repo storage; latest-only | D4, D9, D10, D11 | ⏳ Pending |
+| **6. UI / UX** | **Jurisdiction + category selection and scoped results in the frontend (see below)** | **D7, D8** | ⏳ **Pending** |
+| 7. End-to-end verification | Download → embed → index MVP corpus, verify a jurisdiction-scoped chat answer | — | ⏳ Pending (needs `OPENAI_API_KEY`) |
+
+### Stage 6 — UI / UX (detail)
+
+The frontend must let a user pick where they are and what they're asking about, then make the applied scope obvious in the answer.
+
+- **Jurisdiction selector:** Country → Province/State (MVP: US federal, Canada federal, British Columbia). A sub-national choice makes clear that the co-applicable federal layer is included (Decision 7).
+- **Category selector:** multi-select from the controlled vocabulary (Decision 8); optional (no selection = all categories).
+- **Wiring:** send `jurisdiction` + `categories` on the existing `POST /api/chat` contract (already supported by the backend).
+- **Scope transparency:** show the active scope (e.g. "British Columbia + Canada federal · Criminal, Traffic") above the answer, and group the sources panel by jurisdiction so it's clear which layer each citation came from.
+- **UX quality:** responsive (mobile-first), keyboard-accessible selectors, sensible defaults, and a clear empty/loading state.
+- **Workflow:** per `agents.md`, this stage runs ui-designer → frontend-developer → test-writer before review.
 
 ---
 
