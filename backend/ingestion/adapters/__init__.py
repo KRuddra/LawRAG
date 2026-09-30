@@ -15,6 +15,8 @@ from backend.ingestion.adapters.base import (
 
 # Import concrete adapters so they self-register.
 from backend.ingestion.adapters import justice_laws  # noqa: F401
+from backend.ingestion.adapters import govinfo  # noqa: F401
+from backend.ingestion.adapters import bc_laws  # noqa: F401
 
 __all__ = [
     "AdapterError",

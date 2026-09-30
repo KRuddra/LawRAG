@@ -442,7 +442,7 @@ The decisions above are delivered in verifiable stages. Status as of 2026-09-29.
 | 1. Domain foundation | Jurisdiction taxonomy, category taxonomy + classifier, source registry | D2, D3, D7, D8 | ✅ Done |
 | 2. Environment | Modernize dependencies for Python 3.14 | — | ✅ Done |
 | 3. Retrieval filtering | Chunk metadata, jurisdiction/category filters, hard jurisdiction isolation | D7, D8 | ✅ Done |
-| 4. Source adapters | `govinfo` (US fed), `justice_laws` (CA fed), `bc_laws` (BC) → tagged Documents | D1, D12 | 🔄 In progress (`justice_laws` done) |
+| 4. Source adapters | `govinfo` (US fed), `justice_laws` (CA fed), `bc_laws` (BC) → tagged Documents | D1, D12 | ✅ Done |
 | 5. Ingestion CLI | Decoupled download → parse → classify → chunk → embed(cache) → upsert; in-repo storage; latest-only | D4, D9, D10, D11 | ⏳ Pending |
 | **6. UI / UX** | **Jurisdiction + category selection and scoped results in the frontend (see below)** | **D7, D8** | ⏳ **Pending** |
 | 7. End-to-end verification | Download → embed → index MVP corpus, verify a jurisdiction-scoped chat answer | — | ⏳ Pending (needs `OPENAI_API_KEY`) |
