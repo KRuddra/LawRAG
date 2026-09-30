@@ -493,36 +493,57 @@ def chunk_policy_training(document: Document) -> List[Chunk]:
     return chunks
 
 
+def _enrich_chunks(chunks: List[Chunk], metadata: dict) -> List[Chunk]:
+    """Attach multi-jurisdiction / category metadata to chunks (Decisions 7 & 8).
+
+    Reads the structured fields an adapter placed on the Document's metadata and
+    copies them onto every chunk, so retrieval can filter by jurisdiction and
+    category. ``category`` is the primary (first) label used as the scalar
+    filter; the full list is preserved on ``categories``.
+    """
+    categories = list(metadata.get('categories') or [])
+    primary = categories[0] if categories else metadata.get('category')
+    for chunk in chunks:
+        chunk.jurisdiction_id = metadata.get('jurisdiction_id')
+        chunk.country = metadata.get('country')
+        chunk.region = metadata.get('region')
+        chunk.level = metadata.get('level')
+        chunk.category = primary
+        chunk.categories = categories
+        chunk.source_id = metadata.get('source_id')
+    return chunks
+
+
 def chunk_document(document: Document) -> List[Chunk]:
     """
     Chunk a document using legal-aware strategies based on document type.
-    
+
     Heuristics:
     - statute: split on statute/section boundaries (§ 940.01, 939.50(3)(a))
     - case_law: split by headings (FACTS / HOLDING / REASONING), capture "State v." patterns
     - policies/training: split by numbered headings (1.0, 2.1.3) and ALL CAPS headings
-    
+
     Size targets: chunk by section first, then subchunk to ~1200 tokens with overlap.
-    
+
     Args:
         document: Document object with text and metadata
-        
+
     Returns:
         List of Chunk objects with preserved legal context
     """
     doc_type = document.metadata.get('document_type', 'unknown')
-    
+
     if doc_type == 'statute':
-        return chunk_statute(document)
+        chunks = chunk_statute(document)
     elif doc_type == 'case_law':
-        return chunk_case_law(document)
+        chunks = chunk_case_law(document)
     elif doc_type in ['policy', 'training']:
-        return chunk_policy_training(document)
+        chunks = chunk_policy_training(document)
     else:
         # Fallback: chunk by size only
         chunks = []
         subchunks = subchunk_text(document.text)
-        
+
         for i, subchunk in enumerate(subchunks):
             chunk = Chunk(
                 chunk_id=generate_chunk_id(document.source_path, i),
@@ -538,5 +559,5 @@ def chunk_document(document: Document) -> List[Chunk]:
                 source_uri=document.source_path
             )
             chunks.append(chunk)
-        
-        return chunks
+
+    return _enrich_chunks(chunks, document.metadata)
