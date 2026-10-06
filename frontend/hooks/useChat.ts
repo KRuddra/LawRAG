@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { sendChatMessage } from '../lib/api';
+import { sendChatMessage, ChatScope } from '../lib/api';
 import { Message } from '../lib/types';
 
 export function useChat() {
@@ -10,7 +10,7 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
 
-  const sendMessage = useCallback(async (messageText: string) => {
+  const sendMessage = useCallback(async (messageText: string, scope?: ChatScope) => {
     if (!messageText.trim()) return;
 
     // Add user message immediately
@@ -27,7 +27,7 @@ export function useChat() {
 
     try {
       // Call backend API
-      const response = await sendChatMessage(messageText, conversationId);
+      const response = await sendChatMessage(messageText, conversationId, scope);
 
       // Add AI response
       const aiMessage: Message = {

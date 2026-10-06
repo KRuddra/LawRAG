@@ -43,7 +43,7 @@ export default function InputDock({ input, onInputChange, onSend, disabled = fal
         />
         <button
           className="send-btn"
-          onClick={onSend}
+          onClick={() => onSend()}
           disabled={disabled || !input.trim()}
           aria-label="Send message"
           type="button"

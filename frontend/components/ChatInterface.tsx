@@ -7,6 +7,8 @@ import LoadingSkeleton from './LoadingSkeleton';
 import InputDock from './InputDock';
 import ConfidenceBadge from './ConfidenceBadge';
 import ExportButton from './ExportButton';
+import ScopeBar from './ScopeBar';
+import { DEFAULT_JURISDICTION_ID } from '../lib/jurisdictions';
 
 interface ChatInterfaceProps {
   initialQuery?: string;
@@ -15,8 +17,15 @@ interface ChatInterfaceProps {
 export default function ChatInterface({ initialQuery }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [lastQuery, setLastQuery] = useState<string>('');
+  const [jurisdiction, setJurisdiction] = useState<string>(DEFAULT_JURISDICTION_ID);
+  const [categories, setCategories] = useState<string[]>([]);
   const { messages, loading, sendMessage } = useChat();
   const endRef = useRef<HTMLDivElement>(null);
+
+  const toggleCategory = (value: string) =>
+    setCategories((prev) =>
+      prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value],
+    );
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -40,7 +49,7 @@ export default function ChatInterface({ initialQuery }: ChatInterfaceProps) {
       // Only clear input if it's not from QuickActions
       setInput('');
     }
-    await sendMessage(messageToSend);
+    await sendMessage(messageToSend, { jurisdiction, categories });
   };
 
   // Get latest AI message for confidence and flags
@@ -80,6 +89,15 @@ export default function ChatInterface({ initialQuery }: ChatInterfaceProps) {
         {loading && <LoadingSkeleton />}
         <div ref={endRef} />
       </div>
+
+      <ScopeBar
+        jurisdiction={jurisdiction}
+        categories={categories}
+        onJurisdictionChange={setJurisdiction}
+        onToggleCategory={toggleCategory}
+        onClearCategories={() => setCategories([])}
+        disabled={loading}
+      />
 
       <InputDock
         input={input}

@@ -8,6 +8,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export interface ChatMessage {
   message: string;
   conversation_id?: string;
+  jurisdiction?: string;
+  categories?: string[];
+}
+
+export interface ChatScope {
+  jurisdiction?: string;
+  categories?: string[];
 }
 
 export interface SourceDocument {
@@ -39,11 +46,14 @@ export interface ChatResponse {
  */
 export async function sendChatMessage(
   message: string,
-  conversationId?: string
+  conversationId?: string,
+  scope?: ChatScope
 ): Promise<ChatResponse> {
   const payload: ChatMessage = {
     message,
     ...(conversationId && { conversation_id: conversationId }),
+    ...(scope?.jurisdiction && { jurisdiction: scope.jurisdiction }),
+    ...(scope?.categories && scope.categories.length > 0 && { categories: scope.categories }),
   };
 
   const response = await fetch(`${API_URL}/api/chat`, {
