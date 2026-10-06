@@ -40,6 +40,14 @@ data/embeddings/
 *.db
 *.sqlite
 
+# Ingested bulk corpora (stored locally under data/raw per Decision 4, but not
+# committed — they are large and the Justice Laws download is a nested git repo)
+# and the ingestion content-hash cache (derived state).
+data/ingest_cache.json
+data/raw/ca-justice-laws/
+data/raw/us-govinfo-uscode/
+data/raw/ca-bc-laws/
+
 # Processed data
 data/processed/
 

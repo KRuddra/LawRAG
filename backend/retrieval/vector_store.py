@@ -266,9 +266,22 @@ class VectorStore:
             
             logger.debug(f"Semantic query returned {len(scored_chunks)} results")
             return scored_chunks
-            
+
         except Exception as e:
             logger.error(f"Error performing semantic query: {str(e)}")
+            raise
+
+    def delete_by_doc_id(self, doc_id: str) -> None:
+        """Delete all chunks belonging to a document.
+
+        Used for latest-only replacement (Decision 9): before re-ingesting a
+        changed document, its previous chunks are removed so stale sections do
+        not linger when a document shrinks.
+        """
+        try:
+            self.collection.delete(where={"doc_id": doc_id})
+        except Exception as e:
+            logger.error(f"Error deleting chunks for doc_id {doc_id}: {str(e)}")
             raise
     
     def get_collection_stats(self) -> Dict[str, Any]:
