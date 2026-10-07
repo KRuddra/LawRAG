@@ -445,7 +445,7 @@ The decisions above are delivered in verifiable stages. Status as of 2026-09-29.
 | 4. Source adapters | `govinfo` (US fed), `justice_laws` (CA fed), `bc_laws` (BC) → tagged Documents | D1, D12 | ✅ Done |
 | 5. Ingestion CLI | Decoupled download → parse → classify → chunk → embed(cache) → upsert; in-repo storage; latest-only | D4, D9, D10, D11 | ✅ Done (embed/index step needs `OPENAI_API_KEY`) |
 | **6. UI / UX** | **Jurisdiction + category selection and scoped results in the frontend (see below)** | **D7, D8** | ✅ **Done** |
-| 7. End-to-end verification | Download → embed → index MVP corpus, verify a jurisdiction-scoped chat answer | — | ⏳ Pending (needs `OPENAI_API_KEY`) |
+| 7. End-to-end verification | Download → embed → index MVP corpus, verify a jurisdiction-scoped chat answer | — | 🔄 Download done (971 CA federal Acts → 502 in-force parsed & tagged); embed/index + chat await `OPENAI_API_KEY` |
 
 ### Stage 6 — UI / UX (detail)
 

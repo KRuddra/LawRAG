@@ -97,7 +97,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     for entry in entries:
         logger.info("Ingesting source: %s", entry.id)
         adapter = get_adapter(entry)
-        stats = ingest_source(adapter, vector_store, cache, source_id=entry.id)
+        stats = ingest_source(adapter, vector_store, cache, source_id=entry.id, limit=args.limit)
         print(stats.as_dict())
         if stats.errors:
             overall_ok = False
@@ -116,6 +116,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ing = sub.add_parser("ingest", help="parse, chunk, embed, and index sources")
     p_ing.add_argument("--source", help="only ingest this source id (default: all ingestible)")
+    p_ing.add_argument("--limit", type=int, default=None,
+                       help="cap documents processed per source (cheap smoke runs)")
     p_ing.set_defaults(func=cmd_ingest)
 
     return parser

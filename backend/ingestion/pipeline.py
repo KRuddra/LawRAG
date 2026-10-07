@@ -57,6 +57,7 @@ def ingest_source(
     cache: IngestCache,
     source_id: str,
     replace: bool = True,
+    limit: Optional[int] = None,
 ) -> IngestStats:
     """Ingest every document an adapter yields.
 
@@ -64,10 +65,13 @@ def ingest_source(
       so they are never re-embedded (Decision 10).
     - Changed/new documents replace their previous chunks before upsert so only
       the current version is stored (Decision 9).
+    - ``limit`` caps how many documents are processed (for cheap smoke runs).
     """
     stats = IngestStats(source_id=source_id)
 
     for doc in adapter.documents():
+        if limit is not None and stats.documents_seen >= limit:
+            break
         stats.documents_seen += 1
         doc_id = doc.source_path
 
