@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.2.0",
     "@radix-ui/react-select": "^2.3.8",
     "axios": "^1.6.2",
     "clsx": "^2.1.1",

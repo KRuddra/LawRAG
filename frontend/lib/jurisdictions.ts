@@ -23,6 +23,28 @@ export const JURISDICTIONS: Jurisdiction[] = [
 
 export const DEFAULT_JURISDICTION_ID = 'ca-federal';
 
+export type CountryCode = 'US' | 'CA';
+
+export interface Country {
+  code: CountryCode;
+  label: string;
+  flag: string;
+}
+
+export const COUNTRIES: Country[] = [
+  { code: 'US', label: 'United States', flag: '🇺🇸' },
+  { code: 'CA', label: 'Canada', flag: '🇨🇦' },
+];
+
+export const DEFAULT_COUNTRY: CountryCode = 'CA';
+
+/** Jurisdictions within a country, federal first. */
+export function jurisdictionsForCountry(country: CountryCode): Jurisdiction[] {
+  return JURISDICTIONS.filter((j) => j.country === country).sort(
+    (a, b) => Number(b.isFederal) - Number(a.isFederal),
+  );
+}
+
 export interface Category {
   value: string;
   label: string;

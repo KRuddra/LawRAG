@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Wisconsin Law Enforcement Legal Chat',
-  description: 'RAG system for querying legal documents',
+  title: 'Legal Chat — US & Canada',
+  description: 'Ask questions about statutes and regulations across US and Canadian jurisdictions',
 }
 
 export default function RootLayout({
