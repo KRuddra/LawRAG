@@ -1,192 +1,135 @@
-# Wisconsin Law Enforcement Legal Chat RAG System
+# Legal Chat — US & Canada Legal RAG
 
-A proof-of-concept Retrieval-Augmented Generation (RAG) system that enables Wisconsin law enforcement officers to quickly query state statutes, case law, and department policies through a conversational interface.
+A Retrieval-Augmented Generation (RAG) system for querying **statutes and regulations across US and Canadian jurisdictions**. Pick a jurisdiction and one or more categories of law, ask a question, and get an answer grounded only in the law that applies there — including the co-applicable federal layer.
 
-## Project Structure
+![Legal Chat home](documentation/screenshots/01-home.png)
+
+Choosing **British Columbia** scopes retrieval to BC **plus** Canadian federal law, and the category menu filters by area of law:
+
+![Scope selection](documentation/screenshots/02-scope.png)
+
+---
+
+## What it does
+
+- **Multi-jurisdiction scoping (MVP):** US federal, Canada federal, and British Columbia. A sub-national jurisdiction automatically includes its country's federal layer, and a query is **hard-filtered** so law from another jurisdiction never leaks into the answer.
+- **Category-of-law filtering:** a controlled, cross-jurisdiction vocabulary (criminal, traffic, family, tax, …) applied at ingestion and used as a retrieval filter.
+- **Official-source ingestion:** data comes from official, machine-readable government sources through per-source adapters — not scraped from aggregators.
+- **Sleek dark UI:** jurisdiction + category scope bar, live scope summary, and a cited, confidence-scored chat answer.
+
+## Status
+
+The pipeline is built and tested through the UI. The only step that needs an OpenAI key is the live embed/index + chat (Stage 7).
+
+| Stage | Scope | Status |
+|-------|-------|--------|
+| 1. Domain foundation | Jurisdiction taxonomy, category taxonomy, source registry | ✅ Done |
+| 2. Environment | Modernized for Python 3.14 | ✅ Done |
+| 3. Retrieval filtering | Jurisdiction/category metadata + hard isolation | ✅ Done |
+| 4. Source adapters | `govinfo` (US fed), `justice_laws` (CA fed), `bc_laws` (BC) | ✅ Done |
+| 5. Ingestion CLI | Download → parse → chunk → embed (cached) → index | ✅ Done |
+| 6. UI / UX | Country + jurisdiction + category selection | ✅ Done |
+| 7. End-to-end | Embed + index corpus, live scoped chat | ⏳ Needs `OPENAI_API_KEY` |
+
+> **Decision record:** the full rationale for every architecture choice (data acquisition, storage, vector DB, refresh, isolation, taxonomy, versioning, embedding cost, compliance) is in [documentation/PIPELINE_UPGRADE_DECISIONS.md](documentation/PIPELINE_UPGRADE_DECISIONS.md).
+
+## Data sources
+
+| Jurisdiction | Source | Format | Adapter |
+|---|---|---|---|
+| US federal | [govinfo](https://www.govinfo.gov/bulkdata) (US Code) | USLM XML | `govinfo` |
+| Canada federal | [Justice Laws](https://github.com/justicecanada/laws-lois-xml) (consolidated Acts) | XML | `justice_laws` |
+| British Columbia | [BC Laws](https://www.bclaws.gov.bc.ca/bclawsapi.html) (CiviX API) | XML / XHTML | `bc_laws` |
+
+All are official, open/public-domain sources. CanLII is intentionally **not** used (its terms prohibit bulk access). See the FAQ in the decision record for links and licensing notes.
+
+---
+
+## Project structure
 
 ```
-codefourrag/
-├── backend/          # FastAPI backend application
-├── frontend/         # Next.js frontend application
-├── data/            # Documents and embeddings
-├── documentation/   # Project documentation
-└── scripts/         # Utility scripts
+LawRAG/
+├── backend/              # FastAPI backend
+│   ├── jurisdictions.py  # jurisdiction taxonomy + federal-overlap resolver
+│   ├── categories.py     # category vocabulary + classifier
+│   ├── ingestion/        # adapters, source registry, chunking, pipeline, cache
+│   ├── retrieval/        # vector store, hybrid search, context building
+│   └── generation/       # LLM client, prompts, safety
+├── frontend/             # Next.js 14 + TypeScript + Tailwind
+├── scripts/ingest.py     # ingestion CLI (list / download / ingest)
+├── data/raw/             # downloaded source corpora (bulk corpora gitignored)
+└── documentation/        # architecture, decisions, performance, screenshots
 ```
 
-## Setup Instructions
+## Setup
 
 ### Prerequisites
+- Python 3.11+ (tested on 3.14)
+- Node.js 18+
 
-- Python 3.10+
-- Node.js 18+ (for frontend)
-- npm or yarn
-
-### Backend Setup
-
-1. Create a virtual environment:
+### Backend
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
-```bash
+source venv/bin/activate            # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cp env.example .env                 # then set OPENAI_API_KEY in .env
 ```
 
-3. Copy environment variables:
+Run the API:
 ```bash
-cp .env.example .env
-# Edit .env and add your API keys
+PYTHONPATH=. uvicorn backend.main:app --reload
+# API: http://localhost:8000  ·  docs: http://localhost:8000/docs
 ```
 
-4. Run the backend:
-```bash
-cd backend
-uvicorn main:app --reload
-```
-
-The API will be available at `http://localhost:8000`
-
-### Frontend Setup
-
-1. Navigate to frontend directory:
+### Frontend
 ```bash
 cd frontend
-```
-
-2. Install dependencies:
-```bash
 npm install
+npm run dev                         # http://localhost:3000
 ```
 
-3. Run the development server:
+The frontend reads `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:8000`).
+
+## Ingestion
+
+The pipeline is a decoupled CLI (`scripts/ingest.py`). `list` and `download` need no API key; `ingest` embeds and therefore needs `OPENAI_API_KEY`.
+
 ```bash
-npm run dev
+# See which sources are approved + active
+python scripts/ingest.py list
+
+# Download a source's bulk data into data/raw/<id>
+python scripts/ingest.py download ca-justice-laws
+
+# Parse → chunk → embed → index (use --limit for a cheap first run)
+python scripts/ingest.py ingest --source ca-justice-laws --limit 25
 ```
 
-The frontend will be available at `http://localhost:3000`
-
-## Development Workflow
-
-This project was built incrementally, one component at a time. Each component was implemented and tested independently before moving on to the next.
-
-## API Documentation
-
-Once the backend is running, visit:
-- API Docs: `http://localhost:8000/docs`
-- Alternative Docs: `http://localhost:8000/redoc`
+- **Latest-only:** re-ingesting a document replaces its prior chunks.
+- **Content-hash cache:** unchanged documents are skipped and never re-embedded.
+- **In-force only:** repealed / not-yet-in-force law is skipped at parse time.
 
 ## Testing
 
-Run backend tests:
 ```bash
-cd backend
-pytest
+# Backend (from repo root)
+PYTHONPATH=. venv/bin/python -m pytest backend/tests/ -q
+
+# Frontend
+cd frontend && npm test
 ```
 
-## Data Directory
+## Tech stack
 
-Place your Wisconsin legal documents in the following directories:
-
-- `data/raw/statutes/` - State statutes (PDF/HTML)
-- `data/raw/case_law/` - Case law summaries (PDF)
-- `data/raw/policies/` - Department policies (DOCX/PDF)
-- `data/raw/training/` - Training materials
-
-You can organize files within subdirectories as needed. The system will recursively scan all subdirectories within `data/raw/`.
-
-### Supported File Formats
-
-- **PDF** (`.pdf`) - Uses pdfplumber
-- **Word Documents** (`.docx`, `.doc`) - Uses python-docx
-- **HTML** (`.html`, `.htm`) - Uses BeautifulSoup4
-- **Text Files** (`.txt`, `.md`) - Plain text parsing
-
-## Document Ingestion
-
-### Using the API Endpoint
-
-Once the backend is running, you can ingest documents by calling the `/api/ingest` endpoint:
-
-```bash
-# Ingest all documents from data/raw/
-curl -X POST "http://localhost:8000/api/ingest"
-
-# Or use the interactive API docs at http://localhost:8000/docs
-```
-
-The ingestion process will:
-1. Recursively scan `data/raw/` and all subdirectories
-2. Parse supported file formats (PDF, DOCX, HTML, TXT)
-3. Normalize text (remove headers/footers, preserve section markers)
-4. Extract metadata (title, jurisdiction, dates, statute numbers, department)
-5. Return a list of normalized Document objects
-
-**Note**: This step does NOT chunk or index documents yet. That will be handled in subsequent steps.
-
-### Response Format
-
-The `/api/ingest` endpoint returns:
-- `status`: "success", "partial", or "failed"
-- `documents_processed`: Number of successfully processed documents
-- `documents_failed`: Number of documents that failed to process
-- `total_documents`: Total number of documents found
-- `documents`: List of Document objects with text and metadata
-- `failures`: List of failed files with error messages
-- `processing_time_seconds`: Time taken to process
-
-### Example
-
-```json
-{
-  "status": "success",
-  "documents_processed": 5,
-  "documents_failed": 0,
-  "total_documents": 5,
-  "documents": [
-    {
-      "text": "Normalized document text...",
-      "metadata": {
-        "title": "Wisconsin Statute 940.01",
-        "jurisdiction": "WI",
-        "document_type": "statute",
-        "statute_numbers": ["940.01"],
-        "dates": ["2023"],
-        "source_path": "data/raw/statutes/940.01.pdf"
-      },
-      "source_path": "data/raw/statutes/940.01.pdf"
-    }
-  ],
-  "failures": [],
-  "processing_time_seconds": 2.34
-}
-```
-
-## Performance Evaluation
-
-To evaluate system performance (retrieval accuracy, response time, relevance scoring):
-
-```bash
-# Make sure backend is running first
-python scripts/evaluate_performance.py
-```
-
-This will generate performance metrics and save results to `performance_results.json`.
-
-See `documentation/PERFORMANCE_METRICS.md` for detailed methodology and expected results.
+- **Backend:** FastAPI, Pydantic, ChromaDB (pgvector-ready abstraction), OpenAI embeddings + LLM, lxml / pdfplumber / BeautifulSoup for parsing.
+- **Frontend:** Next.js 14, TypeScript, Tailwind CSS, Radix UI (Select + Popover), lucide-react, Vitest.
 
 ## Documentation
-
-All project documentation lives in the `documentation/` folder:
-
-- **README.md**: Quick start guide and setup instructions (this file, at the repo root)
-- **documentation/EXPLANATION.md**: Complete implementation details and technical documentation
-- **documentation/ARCHITECTURE.md**: System architecture, design decisions, scalability, and security
-- **documentation/PERFORMANCE_METRICS.md**: Performance evaluation methodology and metrics
-- **documentation/PIPELINE_UPGRADE_DECISIONS.md**: Architecture decision record for the multi-jurisdiction pipeline upgrade
+- [documentation/PIPELINE_UPGRADE_DECISIONS.md](documentation/PIPELINE_UPGRADE_DECISIONS.md) — architecture decision record + build roadmap
+- [documentation/ARCHITECTURE.md](documentation/ARCHITECTURE.md) — system architecture
+- [documentation/EXPLANATION.md](documentation/EXPLANATION.md) — implementation details
+- [documentation/PERFORMANCE_METRICS.md](documentation/PERFORMANCE_METRICS.md) — evaluation methodology
 
 ## License
 
 This is a personal project.
-
